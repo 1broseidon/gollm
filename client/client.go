@@ -229,7 +229,7 @@ func (c *Client) GenerateCompletion(ctx context.Context, input models.Completion
 
 // GenerateCompletionStream generates a streaming completion using the specified provider and model
 func (c *Client) GenerateCompletionStream(ctx context.Context, input models.CompletionInput) (<-chan models.StreamingCompletionResponse, error) {
-	provider, model, err := parseProviderModel(input.Model)
+	provider, model, err := c.parseProviderModel(input.Model)
 	if err != nil {
 		c.logger.Error("Failed to parse provider/model:", err)
 		return nil, err
