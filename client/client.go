@@ -35,7 +35,7 @@ type Client struct {
 	mu              sync.RWMutex
 }
 
-// NewClient creates a new gollm client with automatic provider registration
+// NewClient creates a new gollm client without automatic provider registration
 func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 	c := &Client{
 		providers: make(map[string]Provider),
@@ -51,16 +51,6 @@ func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 	}
 
 	c.logger.Info("Initializing gollm client")
-
-	// Auto-register providers
-	if err := c.autoRegisterProviders(ctx); err != nil {
-		c.logger.Error("Failed to auto-register providers", "error", err)
-		return nil, fmt.Errorf("failed to auto-register providers: %w", err)
-	}
-
-	if len(c.providers) == 0 {
-		return nil, errors.New("no providers registered, please set at least one API key or base URL")
-	}
 
 	return c, nil
 }
@@ -215,8 +205,20 @@ func (c *Client) GenerateCompletion(ctx context.Context, input models.Completion
 	c.mu.RUnlock()
 
 	if !ok {
-		c.logger.Error("Unsupported provider:", provider)
-		return nil, ErrUnsupportedProvider
+		// Provider not initialized, attempt to initialize it
+		if err := c.initializeProvider(ctx, provider); err != nil {
+			c.logger.Error("Failed to initialize provider:", provider, "error:", err)
+			return nil, fmt.Errorf("failed to initialize provider %s: %w", provider, err)
+		}
+
+		c.mu.RLock()
+		p, ok = c.providers[provider]
+		c.mu.RUnlock()
+
+		if !ok {
+			c.logger.Error("Provider initialization failed:", provider)
+			return nil, ErrUnsupportedProvider
+		}
 	}
 
 	c.logger.Debugf("Generating completion with provider %s and model %s", provider, model)
@@ -337,4 +339,64 @@ func (c *Client) parseProviderModel(providerModel string) (string, string, error
 		return "", "", errors.New("invalid provider/model format")
 	}
 	return parts[0], parts[1], nil
+}
+// initializeProvider initializes a specific provider
+func (c *Client) initializeProvider(ctx context.Context, providerName string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	switch providerName {
+	case "openai":
+		if openaiAPIKey := os.Getenv("OPENAI_API_KEY"); openaiAPIKey != "" {
+			openaiProvider, err := openai.NewOpenAIProvider()
+			if err != nil {
+				return err
+			}
+			c.providers["openai"] = openaiProvider
+			c.setDefaultProviderIfEmpty("openai")
+			c.logger.Info("Registered OpenAI provider")
+		} else {
+			return errors.New("OPENAI_API_KEY not set")
+		}
+	case "anthropic":
+		if anthropicAPIKey := os.Getenv("ANTHROPIC_API_KEY"); anthropicAPIKey != "" {
+			anthropicProvider, err := anthropic.NewAnthropicProvider()
+			if err != nil {
+				return err
+			}
+			c.providers["anthropic"] = anthropicProvider
+			c.setDefaultProviderIfEmpty("anthropic")
+			c.logger.Info("Registered Anthropic provider")
+		} else {
+			return errors.New("ANTHROPIC_API_KEY not set")
+		}
+	case "googlegemini":
+		if geminiAPIKey := os.Getenv("GEMINI_API_KEY"); geminiAPIKey != "" {
+			geminiProvider, err := googlegemini.NewGoogleGeminiProvider(ctx)
+			if err != nil {
+				return err
+			}
+			c.providers["googlegemini"] = geminiProvider
+			c.setDefaultProviderIfEmpty("googlegemini")
+			c.logger.Info("Registered Google Gemini provider")
+		} else {
+			return errors.New("GEMINI_API_KEY not set")
+		}
+	case "ollama":
+		if ollamaBaseURL := os.Getenv("OLLAMA_BASE_URL"); ollamaBaseURL != "" {
+			ollamaProvider, err := ollama.NewOllamaProvider()
+			if err != nil {
+				return err
+			}
+			c.providers["ollama"] = ollamaProvider
+			c.setDefaultProviderIfEmpty("ollama")
+			c.logger.Info("Registered Ollama provider")
+		} else {
+			return errors.New("OLLAMA_BASE_URL not set")
+		}
+	default:
+		return ErrUnsupportedProvider
+	}
+
+	return nil
 }
