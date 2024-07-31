@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/1broseidon/gollm/client"
 	"github.com/1broseidon/gollm/common"
@@ -109,20 +110,42 @@ func openAIExample(ctx context.Context, c *client.Client) {
 	var openAIResponseText string
 	var openAIUsage *models.Usage
 
-	for chunk := range streamChan {
-		if chunk.Error != nil {
-			log.Printf("Error in streaming: %v", chunk.Error)
-			return
+	// Create a timeout context
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case chunk, ok := <-streamChan:
+				if !ok {
+					done <- true
+					return
+				}
+				if chunk.Error != nil {
+					log.Printf("Error in streaming: %v", chunk.Error)
+					done <- true
+					return
+				}
+				fmt.Print(chunk.Text)
+				openAIResponseText += chunk.Text
+				if chunk.Usage != nil {
+					openAIUsage = chunk.Usage
+				}
+				if chunk.Done {
+					done <- true
+					return
+				}
+			case <-timeoutCtx.Done():
+				log.Println("Timeout occurred while waiting for OpenAI response")
+				done <- true
+				return
+			}
 		}
-		fmt.Print(chunk.Text)
-		openAIResponseText += chunk.Text
-		if chunk.Usage != nil {
-			openAIUsage = chunk.Usage
-		}
-		if chunk.Done {
-			break
-		}
-	}
+	}()
+
+	<-done
 
 	if openAIResponseText == "" {
 		log.Println("No response text received from OpenAI")
