@@ -35,7 +35,7 @@ type Client struct {
 	mu              sync.RWMutex
 }
 
-// NewClient creates a new gollm client without automatic provider registration
+// NewClient creates a new gollm client with automatic provider registration
 func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 	c := &Client{
 		providers: make(map[string]Provider),
@@ -51,6 +51,11 @@ func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 	}
 
 	c.logger.Info("Initializing gollm client")
+
+	// Automatically register providers
+	if err := c.autoRegisterProviders(ctx); err != nil {
+		return nil, fmt.Errorf("failed to auto-register providers: %w", err)
+	}
 
 	return c, nil
 }
@@ -244,8 +249,20 @@ func (c *Client) GenerateCompletionStream(ctx context.Context, input models.Comp
 	c.mu.RUnlock()
 
 	if !ok {
-		c.logger.Error("Unsupported provider:", provider)
-		return nil, ErrUnsupportedProvider
+		// Provider not initialized, attempt to initialize it
+		if err := c.initializeProvider(ctx, provider); err != nil {
+			c.logger.Error("Failed to initialize provider:", provider, "error:", err)
+			return nil, fmt.Errorf("failed to initialize provider %s: %w", provider, err)
+		}
+
+		c.mu.RLock()
+		p, ok = c.providers[provider]
+		c.mu.RUnlock()
+
+		if !ok {
+			c.logger.Error("Provider initialization failed:", provider)
+			return nil, ErrUnsupportedProvider
+		}
 	}
 
 	c.logger.Debugf("Generating streaming completion with provider %s and model %s", provider, model)
