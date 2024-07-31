@@ -1,11 +1,15 @@
 package models
 
-// EmbeddingInput represents the input for an embedding request
+// EmbeddingInput represents the input for an embedding request.
 type EmbeddingInput struct {
-	// TODO: Add embedding input fields
+	Model    string
+	Text     string
+	Provider string
 }
 
-// EmbeddingResponse represents the response from an embedding request
+// EmbeddingResponse represents the response from an embedding request.
 type EmbeddingResponse struct {
-	// TODO: Add embedding response fields
+	Embedding []float32
+	Usage     *Usage
+	Provider  string
 }

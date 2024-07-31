@@ -1,11 +1,16 @@
 package models
 
-// ImageGenerationInput represents the input for an image generation request
+// ImageGenerationInput represents the input for an image generation request.
 type ImageGenerationInput struct {
-	// TODO: Add image generation input fields
+	Prompt   string
+	Size     string
+	Number   int
+	Provider string
 }
 
-// ImageGenerationResponse represents the response from an image generation request
+// ImageGenerationResponse represents the response from an image generation request.
 type ImageGenerationResponse struct {
-	// TODO: Add image generation response fields
+	Images   []string // URLs or base64-encoded image data
+	Usage    *Usage
+	Provider string
 }
