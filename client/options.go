@@ -15,6 +15,7 @@ type ClientOption func(*Client)
 
 // WithDefaultProvider sets the default provider for the client.
 // This provider will be used when no specific provider is specified for operations.
+// If not set, the client will attempt to use the first registered provider as the default.
 func WithDefaultProvider(provider string) ClientOption {
 	return func(c *Client) {
 		c.defaultProvider = provider

@@ -54,7 +54,7 @@ func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 
 	// Auto-register providers
 	if err := c.autoRegisterProviders(ctx); err != nil {
-		c.logger.Error("Failed to auto-register providers:", err)
+		c.logger.Error("Failed to auto-register providers", "error", err)
 		return nil, fmt.Errorf("failed to auto-register providers: %w", err)
 	}
 
@@ -201,10 +201,12 @@ func (c *Client) Close() error {
 // It takes a context and a CompletionInput, which should include the provider/model
 // in the format "provider/model" (e.g., "openai/gpt-3.5-turbo").
 // The function returns a CompletionResponse or an error if the generation fails.
+// GenerateCompletion generates a completion based on the provided input.
+// It returns a CompletionResponse and any error encountered during the process.
 func (c *Client) GenerateCompletion(ctx context.Context, input models.CompletionInput) (*models.CompletionResponse, error) {
 	provider, model, err := c.parseProviderModel(input.Model)
 	if err != nil {
-		c.logger.Error("Failed to parse provider/model:", err)
+		c.logger.Error("Failed to parse provider/model", "error", err)
 		return nil, fmt.Errorf("failed to parse provider/model: %w", err)
 	}
 
