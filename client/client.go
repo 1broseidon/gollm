@@ -199,6 +199,9 @@ func (c *Client) GenerateCompletionStream(ctx context.Context, input models.Comp
 	}
 	c.logger.Debugf("Provider: %s, Model: %s", provider, model)
 
+	// Register the specified model
+	c.RegisterProvider(provider, nil)
+
 	c.logger.Debug("About to call getOrInitializeProvider")
 	p, err := c.getOrInitializeProvider(ctx, provider)
 	if err != nil {
