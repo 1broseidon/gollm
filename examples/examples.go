@@ -20,38 +20,52 @@ func main() {
 		return
 	}
 
-	var c *client.Client
-	var err error
-
-	if os.Args[1] == "logging" {
-		// Enable logging
-		c, err = client.NewClient(ctx, client.WithLogLevel(common.InfoLevel))
-	} else {
-		// Disable logging for other options
-		c, err = client.NewClient(ctx)
-	}
-
-	if err != nil {
-		log.Fatalf("Failed to create gollm client: %v", err)
-	}
-	defer c.Close()
-
 	switch os.Args[1] {
 	case "logging":
+		c, err := client.NewClient(ctx, client.WithLogLevel(common.InfoLevel))
+		if err != nil {
+			log.Fatalf("Failed to create gollm client: %v", err)
+		}
+		defer c.Close()
 		fmt.Println("Logging enabled. Running all examples with logging:")
 		openAIExample(ctx, c)
 		geminiExample(ctx, c)
 		anthropicExample(ctx, c)
 		ollamaExample(ctx, c)
 	case "openai":
+		c, err := client.NewClient(ctx, client.WithDefaultProvider("openai"))
+		if err != nil {
+			log.Fatalf("Failed to create gollm client: %v", err)
+		}
+		defer c.Close()
 		openAIExample(ctx, c)
 	case "gemini":
+		c, err := client.NewClient(ctx, client.WithDefaultProvider("googlegemini"))
+		if err != nil {
+			log.Fatalf("Failed to create gollm client: %v", err)
+		}
+		defer c.Close()
 		geminiExample(ctx, c)
 	case "anthropic":
+		c, err := client.NewClient(ctx, client.WithDefaultProvider("anthropic"))
+		if err != nil {
+			log.Fatalf("Failed to create gollm client: %v", err)
+		}
+		defer c.Close()
 		anthropicExample(ctx, c)
 	case "ollama":
+		c, err := client.NewClient(ctx, client.WithDefaultProvider("ollama"))
+		if err != nil {
+			log.Fatalf("Failed to create gollm client: %v", err)
+		}
+		defer c.Close()
 		ollamaExample(ctx, c)
 	case "all":
+		c, err := client.NewClient(ctx)
+		if err != nil {
+			log.Fatalf("Failed to create gollm client: %v", err)
+		}
+		defer c.Close()
 		openAIExample(ctx, c)
 		geminiExample(ctx, c)
 		anthropicExample(ctx, c)
