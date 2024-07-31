@@ -52,6 +52,24 @@ func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 
 	c.logger.Info("Initializing gollm client")
 
+	// Initialize providers
+	providerNames := []string{"openai", "anthropic", "googlegemini", "ollama"}
+	for _, name := range providerNames {
+		c.logger.Debugf("Attempting to initialize provider: %s", name)
+		provider, err := c.initializeProvider(ctx, name)
+		if err != nil {
+			c.logger.Debugf("Failed to initialize provider %s: %v", name, err)
+		} else {
+			c.providers[name] = provider
+			c.logger.Infof("Successfully initialized provider: %s", name)
+		}
+	}
+
+	if len(c.providers) == 0 {
+		return nil, fmt.Errorf("no providers were successfully initialized")
+	}
+
+	c.logger.Info("gollm client initialization complete")
 	return c, nil
 }
 

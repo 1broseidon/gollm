@@ -87,6 +87,7 @@ func showAvailableModels() {
 }
 
 func openAIExample(ctx context.Context, c *client.Client) {
+	fmt.Println("Starting OpenAI example")
 	openAIInput := models.CompletionInput{
 		Model: "openai/gpt-3.5-turbo",
 		Messages: []models.ChatMessage{
@@ -96,11 +97,13 @@ func openAIExample(ctx context.Context, c *client.Client) {
 		Temperature: 0.7,
 		Stream:      true,
 	}
+	fmt.Println("Calling GenerateCompletionStream")
 	streamChan, err := c.GenerateCompletionStream(ctx, openAIInput)
 	if err != nil {
 		log.Printf("Failed to generate completion stream with OpenAI: %v", err)
 		return
 	}
+	fmt.Println("Successfully got stream channel")
 
 	fmt.Println("OpenAI GPT-3.5-turbo Response:")
 	var openAIResponseText string
