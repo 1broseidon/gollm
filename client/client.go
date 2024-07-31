@@ -52,38 +52,7 @@ func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 
 	c.logger.Info("Initializing gollm client")
 
-	// Automatically register providers
-	if err := c.autoRegisterProviders(ctx); err != nil {
-		return nil, fmt.Errorf("failed to auto-register providers: %w", err)
-	}
-
 	return c, nil
-}
-
-func (c *Client) autoRegisterProviders(ctx context.Context) error {
-	var wg sync.WaitGroup
-	errChan := make(chan error, 4) // Buffer for potential errors from 4 providers
-
-	wg.Add(4)
-
-	go c.registerOpenAIProvider(&wg, errChan)
-	go c.registerAnthropicProvider(&wg, errChan)
-	go c.registerGoogleGeminiProvider(ctx, &wg, errChan)
-	go c.registerOllamaProvider(&wg, errChan)
-
-	go func() {
-		wg.Wait()
-		close(errChan)
-	}()
-
-	for err := range errChan {
-		if err != nil {
-			c.logger.Error("Error during provider registration:", err)
-			// Non-blocking: log the error but continue with other providers
-		}
-	}
-
-	return nil
 }
 
 func (c *Client) registerOpenAIProvider(wg *sync.WaitGroup, errChan chan<- error) {
@@ -205,25 +174,9 @@ func (c *Client) GenerateCompletion(ctx context.Context, input models.Completion
 		return nil, fmt.Errorf("failed to parse provider/model: %w", err)
 	}
 
-	c.mu.RLock()
-	p, ok := c.providers[provider]
-	c.mu.RUnlock()
-
-	if !ok {
-		// Provider not initialized, attempt to initialize it
-		if err := c.initializeProvider(ctx, provider); err != nil {
-			c.logger.Error("Failed to initialize provider:", provider, "error:", err)
-			return nil, fmt.Errorf("failed to initialize provider %s: %w", provider, err)
-		}
-
-		c.mu.RLock()
-		p, ok = c.providers[provider]
-		c.mu.RUnlock()
-
-		if !ok {
-			c.logger.Error("Provider initialization failed:", provider)
-			return nil, ErrUnsupportedProvider
-		}
+	p, err := c.getOrInitializeProvider(ctx, provider)
+	if err != nil {
+		return nil, err
 	}
 
 	c.logger.Debugf("Generating completion with provider %s and model %s", provider, model)
@@ -244,25 +197,9 @@ func (c *Client) GenerateCompletionStream(ctx context.Context, input models.Comp
 		return nil, err
 	}
 
-	c.mu.RLock()
-	p, ok := c.providers[provider]
-	c.mu.RUnlock()
-
-	if !ok {
-		// Provider not initialized, attempt to initialize it
-		if err := c.initializeProvider(ctx, provider); err != nil {
-			c.logger.Error("Failed to initialize provider:", provider, "error:", err)
-			return nil, fmt.Errorf("failed to initialize provider %s: %w", provider, err)
-		}
-
-		c.mu.RLock()
-		p, ok = c.providers[provider]
-		c.mu.RUnlock()
-
-		if !ok {
-			c.logger.Error("Provider initialization failed:", provider)
-			return nil, ErrUnsupportedProvider
-		}
+	p, err := c.getOrInitializeProvider(ctx, provider)
+	if err != nil {
+		return nil, err
 	}
 
 	c.logger.Debugf("Generating streaming completion with provider %s and model %s", provider, model)
@@ -358,62 +295,77 @@ func (c *Client) parseProviderModel(providerModel string) (string, string, error
 	return parts[0], parts[1], nil
 }
 // initializeProvider initializes a specific provider
-func (c *Client) initializeProvider(ctx context.Context, providerName string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
+func (c *Client) initializeProvider(ctx context.Context, providerName string) (Provider, error) {
 	switch providerName {
 	case "openai":
 		if openaiAPIKey := os.Getenv("OPENAI_API_KEY"); openaiAPIKey != "" {
 			openaiProvider, err := openai.NewOpenAIProvider()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			c.providers["openai"] = openaiProvider
 			c.setDefaultProviderIfEmpty("openai")
 			c.logger.Info("Registered OpenAI provider")
-		} else {
-			return errors.New("OPENAI_API_KEY not set")
+			return openaiProvider, nil
 		}
+		return nil, errors.New("OPENAI_API_KEY not set")
 	case "anthropic":
 		if anthropicAPIKey := os.Getenv("ANTHROPIC_API_KEY"); anthropicAPIKey != "" {
 			anthropicProvider, err := anthropic.NewAnthropicProvider()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			c.providers["anthropic"] = anthropicProvider
 			c.setDefaultProviderIfEmpty("anthropic")
 			c.logger.Info("Registered Anthropic provider")
-		} else {
-			return errors.New("ANTHROPIC_API_KEY not set")
+			return anthropicProvider, nil
 		}
+		return nil, errors.New("ANTHROPIC_API_KEY not set")
 	case "googlegemini":
 		if geminiAPIKey := os.Getenv("GEMINI_API_KEY"); geminiAPIKey != "" {
 			geminiProvider, err := googlegemini.NewGoogleGeminiProvider(ctx)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			c.providers["googlegemini"] = geminiProvider
 			c.setDefaultProviderIfEmpty("googlegemini")
 			c.logger.Info("Registered Google Gemini provider")
-		} else {
-			return errors.New("GEMINI_API_KEY not set")
+			return geminiProvider, nil
 		}
+		return nil, errors.New("GEMINI_API_KEY not set")
 	case "ollama":
 		if ollamaBaseURL := os.Getenv("OLLAMA_BASE_URL"); ollamaBaseURL != "" {
 			ollamaProvider, err := ollama.NewOllamaProvider()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			c.providers["ollama"] = ollamaProvider
 			c.setDefaultProviderIfEmpty("ollama")
 			c.logger.Info("Registered Ollama provider")
-		} else {
-			return errors.New("OLLAMA_BASE_URL not set")
+			return ollamaProvider, nil
 		}
+		return nil, errors.New("OLLAMA_BASE_URL not set")
 	default:
-		return ErrUnsupportedProvider
+		return nil, ErrUnsupportedProvider
+	}
+}
+func (c *Client) getOrInitializeProvider(ctx context.Context, providerName string) (Provider, error) {
+	c.mu.RLock()
+	p, ok := c.providers[providerName]
+	c.mu.RUnlock()
+
+	if !ok {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+
+		// Check again in case another goroutine initialized the provider
+		p, ok = c.providers[providerName]
+		if !ok {
+			var err error
+			p, err = c.initializeProvider(ctx, providerName)
+			if err != nil {
+				c.logger.Error("Failed to initialize provider:", providerName, "error:", err)
+				return nil, fmt.Errorf("failed to initialize provider %s: %w", providerName, err)
+			}
+			c.providers[providerName] = p
+		}
 	}
 
-	return nil
+	return p, nil
 }
