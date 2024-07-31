@@ -233,12 +233,14 @@ func anthropicExample(ctx context.Context, c *client.Client) {
 
 	fmt.Println("Calling GenerateCompletionStream")
 	anthropicInput.Stream = true
+	fmt.Println("Debug: About to call c.GenerateCompletionStream")
 	streamChan, err := c.GenerateCompletionStream(ctx, anthropicInput)
 	if err != nil {
 		log.Printf("Failed to generate completion stream with Anthropic: %v", err)
 		return
 	}
 	fmt.Println("Successfully got stream channel")
+	fmt.Println("Debug: Stream channel received, about to start processing")
 
 	fmt.Println("\nAnthropic Claude Response:")
 	var anthropicResponseText string

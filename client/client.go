@@ -191,16 +191,20 @@ func (c *Client) GenerateCompletion(ctx context.Context, input models.Completion
 
 // GenerateCompletionStream generates a streaming completion using the specified provider and model
 func (c *Client) GenerateCompletionStream(ctx context.Context, input models.CompletionInput) (<-chan models.StreamingCompletionResponse, error) {
+	c.logger.Debug("Entering GenerateCompletionStream")
 	provider, model, err := c.parseProviderModel(input.Model)
 	if err != nil {
 		c.logger.Error("Failed to parse provider/model:", err)
 		return nil, err
 	}
+	c.logger.Debugf("Provider: %s, Model: %s", provider, model)
 
 	p, err := c.getOrInitializeProvider(ctx, provider)
 	if err != nil {
+		c.logger.Error("Failed to get or initialize provider:", err)
 		return nil, err
 	}
+	c.logger.Debug("Provider initialized successfully")
 
 	c.logger.Debugf("Generating streaming completion with provider %s and model %s", provider, model)
 	stream, err := p.GenerateCompletionStream(ctx, model, input)
@@ -208,6 +212,7 @@ func (c *Client) GenerateCompletionStream(ctx context.Context, input models.Comp
 		c.logger.Error("Failed to generate streaming completion:", err)
 		return nil, err
 	}
+	c.logger.Debug("Streaming completion generated successfully")
 
 	return stream, nil
 }
