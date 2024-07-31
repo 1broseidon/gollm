@@ -35,7 +35,7 @@ type Client struct {
 	mu              sync.RWMutex
 }
 
-// NewClient creates a new gollm client without automatic provider registration
+// NewClient creates a new gollm client with automatic provider registration
 func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 	c := &Client{
 		providers: make(map[string]Provider),
@@ -51,6 +51,28 @@ func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 	}
 
 	c.logger.Info("Initializing gollm client")
+
+	// Register providers
+	var wg sync.WaitGroup
+	errChan := make(chan error, 4) // 4 is the number of providers we're registering
+
+	wg.Add(4)
+	go c.registerOpenAIProvider(&wg, errChan)
+	go c.registerAnthropicProvider(&wg, errChan)
+	go c.registerGoogleGeminiProvider(ctx, &wg, errChan)
+	go c.registerOllamaProvider(&wg, errChan)
+
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
+
+	for err := range errChan {
+		if err != nil {
+			return nil, fmt.Errorf("error during provider registration: %w", err)
+		}
+	}
+
 	c.logger.Info("gollm client initialization complete")
 	return c, nil
 }
