@@ -283,12 +283,17 @@ func anthropicExample(ctx context.Context, c *client.Client) {
 		}
 	}()
 
-	<-done
+	select {
+	case <-done:
+		fmt.Println("Stream processing completed")
+	case <-timeoutCtx.Done():
+		log.Println("Timeout occurred while waiting for stream to complete")
+	}
 
 	if anthropicResponseText == "" {
 		log.Println("No response text received from Anthropic")
 	} else {
-		fmt.Println("")
+		fmt.Println("Response received successfully")
 	}
 
 	if anthropicUsage != nil {
@@ -297,6 +302,8 @@ func anthropicExample(ctx context.Context, c *client.Client) {
 	} else {
 		fmt.Println("Token Usage information is missing")
 	}
+
+	fmt.Println("Anthropic example completed")
 }
 func ollamaExample(ctx context.Context, c *client.Client) {
 	if os.Getenv("OLLAMA_BASE_URL") == "" {

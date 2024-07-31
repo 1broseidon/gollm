@@ -132,17 +132,25 @@ func (c *Client) Close() error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	c.logger.Debug("Closing all providers")
+
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(c.providers))
 
-	for _, provider := range c.providers {
+	for name, provider := range c.providers {
 		wg.Add(1)
-		go func(p Provider) {
+		go func(name string, p Provider) {
 			defer wg.Done()
-			if err := p.Close(); err != nil {
-				errChan <- err
+			if p == nil {
+				c.logger.Warn("Skipping nil provider:", name)
+				return
 			}
-		}(provider)
+			c.logger.Debug("Closing provider:", name)
+			if err := p.Close(); err != nil {
+				c.logger.Error("Error closing provider:", name, "error:", err)
+				errChan <- fmt.Errorf("error closing %s provider: %w", name, err)
+			}
+		}(name, provider)
 	}
 
 	go func() {
@@ -153,11 +161,11 @@ func (c *Client) Close() error {
 	var lastErr error
 	for err := range errChan {
 		if err != nil {
-			c.logger.Error("Error closing provider:", err)
 			lastErr = err
 		}
 	}
 
+	c.logger.Debug("All providers closed")
 	return lastErr
 }
 
