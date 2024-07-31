@@ -218,11 +218,21 @@ func (c *Client) GenerateCompletionStream(ctx context.Context, input models.Comp
 	stream, err := p.GenerateCompletionStream(ctx, model, input)
 	if err != nil {
 		c.logger.Error("Failed to generate streaming completion:", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to generate streaming completion: %w", err)
 	}
 	c.logger.Debug("Streaming completion generated successfully")
 
-	return stream, nil
+	// Add a debug channel to inspect the stream
+	debugStream := make(chan models.StreamingCompletionResponse)
+	go func() {
+		defer close(debugStream)
+		for resp := range stream {
+			c.logger.Debugf("Received streaming response: %+v", resp)
+			debugStream <- resp
+		}
+	}()
+
+	return debugStream, nil
 }
 
 // GenerateEmbedding generates an embedding using the default provider

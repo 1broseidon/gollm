@@ -260,6 +260,7 @@ func anthropicExample(ctx context.Context, c *client.Client) {
 					done <- true
 					return
 				}
+				fmt.Printf("Debug: Received chunk: %+v\n", chunk)
 				if chunk.Error != nil {
 					log.Printf("Error in streaming: %v", chunk.Error)
 					done <- true
