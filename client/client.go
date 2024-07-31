@@ -199,6 +199,7 @@ func (c *Client) GenerateCompletionStream(ctx context.Context, input models.Comp
 	}
 	c.logger.Debugf("Provider: %s, Model: %s", provider, model)
 
+	c.logger.Debug("About to call getOrInitializeProvider")
 	p, err := c.getOrInitializeProvider(ctx, provider)
 	if err != nil {
 		c.logger.Error("Failed to get or initialize provider:", err)
@@ -206,7 +207,7 @@ func (c *Client) GenerateCompletionStream(ctx context.Context, input models.Comp
 	}
 	c.logger.Debug("Provider initialized successfully")
 
-	c.logger.Debugf("Generating streaming completion with provider %s and model %s", provider, model)
+	c.logger.Debugf("About to call p.GenerateCompletionStream with provider %s and model %s", provider, model)
 	stream, err := p.GenerateCompletionStream(ctx, model, input)
 	if err != nil {
 		c.logger.Error("Failed to generate streaming completion:", err)
@@ -351,13 +352,16 @@ func (c *Client) initializeProvider(ctx context.Context, providerName string) (P
 	}
 }
 func (c *Client) getOrInitializeProvider(ctx context.Context, providerName string) (Provider, error) {
+	c.logger.Debug("Entering getOrInitializeProvider for provider:", providerName)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if p, ok := c.providers[providerName]; ok {
+		c.logger.Debug("Provider already initialized:", providerName)
 		return p, nil
 	}
 
+	c.logger.Debug("About to initialize provider:", providerName)
 	p, err := c.initializeProvider(ctx, providerName)
 	if err != nil {
 		c.logger.Error("Failed to initialize provider:", providerName, "error:", err)
