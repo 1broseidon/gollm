@@ -182,7 +182,7 @@ func (c *Client) GenerateCompletion(ctx context.Context, input models.Completion
 		return nil, fmt.Errorf("failed to parse provider/model: %w", err)
 	}
 
-	p, err := c.getOrInitializeProvider(ctx, provider)
+	p, err := c.initializeProvider(ctx, provider)
 	if err != nil {
 		return nil, err
 	}
