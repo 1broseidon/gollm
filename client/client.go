@@ -35,7 +35,7 @@ type Client struct {
 	mu              sync.RWMutex
 }
 
-// NewClient creates a new gollm client with automatic provider registration
+// NewClient creates a new gollm client without automatic provider registration
 func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 	c := &Client{
 		providers: make(map[string]Provider),
@@ -51,24 +51,6 @@ func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 	}
 
 	c.logger.Info("Initializing gollm client")
-
-	// Initialize providers
-	providerNames := []string{"openai", "anthropic", "googlegemini", "ollama"}
-	for _, name := range providerNames {
-		c.logger.Debugf("Attempting to initialize provider: %s", name)
-		provider, err := c.initializeProvider(ctx, name)
-		if err != nil {
-			c.logger.Debugf("Failed to initialize provider %s: %v", name, err)
-		} else {
-			c.providers[name] = provider
-			c.logger.Infof("Successfully initialized provider: %s", name)
-		}
-	}
-
-	if len(c.providers) == 0 {
-		return nil, fmt.Errorf("no providers were successfully initialized")
-	}
-
 	c.logger.Info("gollm client initialization complete")
 	return c, nil
 }
@@ -364,26 +346,21 @@ func (c *Client) initializeProvider(ctx context.Context, providerName string) (P
 	}
 }
 func (c *Client) getOrInitializeProvider(ctx context.Context, providerName string) (Provider, error) {
-	c.mu.RLock()
-	p, ok := c.providers[providerName]
-	c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	if !ok {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-
-		// Check again in case another goroutine initialized the provider
-		p, ok = c.providers[providerName]
-		if !ok {
-			var err error
-			p, err = c.initializeProvider(ctx, providerName)
-			if err != nil {
-				c.logger.Error("Failed to initialize provider:", providerName, "error:", err)
-				return nil, fmt.Errorf("failed to initialize provider %s: %w", providerName, err)
-			}
-			c.providers[providerName] = p
-		}
+	if p, ok := c.providers[providerName]; ok {
+		return p, nil
 	}
+
+	p, err := c.initializeProvider(ctx, providerName)
+	if err != nil {
+		c.logger.Error("Failed to initialize provider:", providerName, "error:", err)
+		return nil, fmt.Errorf("failed to initialize provider %s: %w", providerName, err)
+	}
+
+	c.providers[providerName] = p
+	c.logger.Infof("Successfully initialized provider: %s", providerName)
 
 	return p, nil
 }
