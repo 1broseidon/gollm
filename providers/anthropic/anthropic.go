@@ -24,12 +24,14 @@ type AnthropicProvider struct {
 func NewAnthropicProvider() (*AnthropicProvider, error) {
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
-		return nil, errors.New("ANTHROPIC_API_KEY environment variable is not set")
+		return nil, fmt.Errorf("ANTHROPIC_API_KEY environment variable is not set")
 	}
 
 	return &AnthropicProvider{
 		apiKey: apiKey,
-		client: &http.Client{},
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}, nil
 }
 

@@ -28,12 +28,14 @@ type OpenAIProvider struct {
 func NewOpenAIProvider() (*OpenAIProvider, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		return nil, errors.New("OPENAI_API_KEY environment variable is not set")
+		return nil, fmt.Errorf("OPENAI_API_KEY environment variable is not set")
 	}
 
 	return &OpenAIProvider{
 		apiKey: apiKey,
-		client: &http.Client{},
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}, nil
 }
 

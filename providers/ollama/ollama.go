@@ -25,12 +25,14 @@ type OllamaProvider struct {
 func NewOllamaProvider() (*OllamaProvider, error) {
 	baseURL := os.Getenv("OLLAMA_BASE_URL")
 	if baseURL == "" {
-		return nil, errors.New("OLLAMA_BASE_URL environment variable is not set")
+		return nil, fmt.Errorf("OLLAMA_BASE_URL environment variable is not set")
 	}
 
 	return &OllamaProvider{
 		baseURL: baseURL,
-		client:  &http.Client{},
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}, nil
 }
 

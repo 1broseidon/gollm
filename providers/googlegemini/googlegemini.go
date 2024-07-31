@@ -21,12 +21,12 @@ type GoogleGeminiProvider struct {
 func NewGoogleGeminiProvider(ctx context.Context) (*GoogleGeminiProvider, error) {
 	apiKey, found := os.LookupEnv("GEMINI_API_KEY")
 	if !found {
-		return nil, errors.New("GEMINI_API_KEY environment variable is not set")
+		return nil, fmt.Errorf("GEMINI_API_KEY environment variable is not set")
 	}
 
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
 	}
 
 	return &GoogleGeminiProvider{
