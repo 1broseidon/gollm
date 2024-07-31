@@ -21,6 +21,8 @@ func main() {
 		return
 	}
 
+	fmt.Printf("Running example for: %s\n", os.Args[1])
+
 	switch os.Args[1] {
 	case "logging":
 		c, err := client.NewClient(ctx, client.WithLogLevel(common.InfoLevel))
@@ -34,35 +36,36 @@ func main() {
 		anthropicExample(ctx, c)
 		ollamaExample(ctx, c)
 	case "openai":
-		c, err := client.NewClient(ctx, client.WithDefaultProvider("openai"))
+		c, err := client.NewClient(ctx, client.WithDefaultProvider("openai"), client.WithLogLevel(common.InfoLevel))
 		if err != nil {
 			log.Fatalf("Failed to create gollm client: %v", err)
 		}
 		defer c.Close()
 		openAIExample(ctx, c)
 	case "gemini":
-		c, err := client.NewClient(ctx, client.WithDefaultProvider("googlegemini"))
+		c, err := client.NewClient(ctx, client.WithDefaultProvider("googlegemini"), client.WithLogLevel(common.InfoLevel))
 		if err != nil {
 			log.Fatalf("Failed to create gollm client: %v", err)
 		}
 		defer c.Close()
 		geminiExample(ctx, c)
 	case "anthropic":
-		c, err := client.NewClient(ctx, client.WithDefaultProvider("anthropic"))
+		c, err := client.NewClient(ctx, client.WithDefaultProvider("anthropic"), client.WithLogLevel(common.InfoLevel))
 		if err != nil {
 			log.Fatalf("Failed to create gollm client: %v", err)
 		}
 		defer c.Close()
+		fmt.Println("Client created successfully")
 		anthropicExample(ctx, c)
 	case "ollama":
-		c, err := client.NewClient(ctx, client.WithDefaultProvider("ollama"))
+		c, err := client.NewClient(ctx, client.WithDefaultProvider("ollama"), client.WithLogLevel(common.InfoLevel))
 		if err != nil {
 			log.Fatalf("Failed to create gollm client: %v", err)
 		}
 		defer c.Close()
 		ollamaExample(ctx, c)
 	case "all":
-		c, err := client.NewClient(ctx)
+		c, err := client.NewClient(ctx, client.WithLogLevel(common.InfoLevel))
 		if err != nil {
 			log.Fatalf("Failed to create gollm client: %v", err)
 		}
@@ -212,6 +215,7 @@ func geminiExample(ctx context.Context, c *client.Client) {
 }
 
 func anthropicExample(ctx context.Context, c *client.Client) {
+	fmt.Println("Starting Anthropic example")
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
 		fmt.Println("\nSkipping Anthropic example: ANTHROPIC_API_KEY not set")
 		return
@@ -227,34 +231,66 @@ func anthropicExample(ctx context.Context, c *client.Client) {
 		Temperature: 0.7,
 	}
 
+	fmt.Println("Calling GenerateCompletionStream")
 	anthropicInput.Stream = true
 	streamChan, err := c.GenerateCompletionStream(ctx, anthropicInput)
 	if err != nil {
 		log.Printf("Failed to generate completion stream with Anthropic: %v", err)
 		return
 	}
+	fmt.Println("Successfully got stream channel")
 
 	fmt.Println("\nAnthropic Claude Response:")
 	var anthropicResponseText string
 	var anthropicUsage *models.Usage
 
-	for chunk := range streamChan {
-		if chunk.Error != nil {
-			log.Printf("Error in streaming: %v", chunk.Error)
-			return
+	// Create a timeout context
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case chunk, ok := <-streamChan:
+				if !ok {
+					fmt.Println("Stream channel closed")
+					done <- true
+					return
+				}
+				if chunk.Error != nil {
+					log.Printf("Error in streaming: %v", chunk.Error)
+					done <- true
+					return
+				}
+				fmt.Print(chunk.Text)
+				anthropicResponseText += chunk.Text
+				if chunk.Usage != nil {
+					anthropicUsage = chunk.Usage
+				}
+				if chunk.Done {
+					fmt.Println("Stream completed")
+					done <- true
+					return
+				}
+			case <-timeoutCtx.Done():
+				log.Println("Timeout occurred while waiting for Anthropic response")
+				done <- true
+				return
+			}
 		}
-		fmt.Print(chunk.Text)
-		anthropicResponseText += chunk.Text
-		if chunk.Usage != nil {
-			anthropicUsage = chunk.Usage
-		}
-		if chunk.Done {
-			break
-		}
+	}()
+
+	<-done
+
+	if anthropicResponseText == "" {
+		log.Println("No response text received from Anthropic")
+	} else {
+		fmt.Println("")
 	}
 
 	if anthropicUsage != nil {
-		fmt.Printf("\n\nToken Usage:\nInput Tokens: %d\nOutput Tokens: %d\nTotal Tokens: %d\n",
+		fmt.Printf("\nToken Usage:\nInput Tokens: %d\nOutput Tokens: %d\nTotal Tokens: %d\n",
 			anthropicUsage.PromptTokens, anthropicUsage.CompletionTokens, anthropicUsage.TotalTokens)
 	} else {
 		fmt.Println("Token Usage information is missing")
