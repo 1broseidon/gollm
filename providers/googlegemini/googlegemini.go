@@ -3,6 +3,7 @@ package googlegemini
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
